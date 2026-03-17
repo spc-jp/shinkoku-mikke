@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>申告みっけ｜確定申告PDFから報告レターを自動生成</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* =============================================
+     WORKERS エンドポイントをここに設定してください
+     例: https://shinkok-worker.your-name.workers.dev
+  ============================================= */
+
+  :root {
+    --navy: #1a2e5a;
+    --navy-mid: #243d7a;
+    --gold: #b8932a;
+    --gold-light: #d4ac45;
+    --gold-pale: #faf3e0;
+    --cream: #faf8f4;
+    --ink: #1e1e2e;
+    --muted: #6b7280;
+    --border: #ddd6c8;
+    --green: #1a6b4a;
+    --green-pale: #edf7f2;
+    --red: #c0392b;
+    --red-pale: #fdf0ee;
+    --white: #ffffff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* ===== HEADER ===== */
+  .site-header {
+    background: var(--navy);
+    position: relative;
+    overflow: hidden;
+  }
+  .header-deco {
+    position: absolute;
+    top: -50px; right: -50px;
+    width: 240px; height: 240px;
+    border-radius: 50%;
+    background: rgba(184,147,42,0.1);
+    pointer-events: none;
+  }
+  .header-deco2 {
+    position: absolute;
+    bottom: -40px; left: 40px;
+    width: 130px; height: 130px;
+    border-radius: 50%;
+    background: rgba(184,147,42,0.06);
+    pointer-events: none;
+  }
+  .header-inner {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 26px 24px 22px;
+    position: relative;
+    z-index: 1;
+  }
+  .brand-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 8px;
+  }
+  .brand-icon {
+    width: 50px; height: 50px;
+    background: var(--gold);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Noto Serif JP', serif;
+    font-size: 24px;
+    color: white;
+    font-weight: 700;
+    flex-shrink: 0;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+  }
+  .brand-text .series {
+    font-size: 10px;
+    color: var(--gold-light);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  .brand-text h1 {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 22px;
+    color: white;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+  .header-tagline {
+    font-size: 12.5px;
+    color: rgba(255,255,255,0.6);
+    margin-top: 4px;
+    letter-spacing: 0.03em;
+  }
+  .gold-bar {
+    height: 3px;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light), transparent);
+  }
+
+  /* ===== FLOW INDICATOR ===== */
+  .flow-bar {
+    background: white;
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+  }
+  .flow-inner {
+    max-width: 820px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+  .flow-step {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: 1;
+    position: relative;
+  }
+  .flow-step:not(:last-child)::after {
+    content: '›';
+    color: var(--border);
+    font-size: 18px;
+    margin: 0 8px;
+    flex-shrink: 0;
+  }
+  .flow-dot {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.3s;
+  }
+  .flow-step.active .flow-dot {
+    background: var(--navy);
+    color: white;
+  }
+  .flow-step.done .flow-dot {
+    background: var(--green);
+    color: white;
+  }
+  .flow-label {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    transition: color 0.3s;
+  }
+  .flow-step.active .flow-label { color: var(--navy); font-weight: 500; }
+  .flow-step.done .flow-label { color: var(--green); }
+
+  /* ===== MAIN ===== */
+  .main {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 28px 16px 60px;
+  }
+
+  /* ===== PHASE SECTIONS ===== */
+  .phase {
+    display: none;
+  }
+  .phase.active { display: block; }
+
+  /* ===== CARD ===== */
+  .card {
+    background: white;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .card-header {
+    background: var(--navy);
+    padding: 14px 22px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .card-icon {
+    font-size: 18px;
+  }
+  .card-title {
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+  }
+  .card-body { padding: 24px; }
+
+  /* ===== DROP ZONE ===== */
+  .drop-zone {
+    border: 2.5px dashed var(--border);
+    border-radius: 14px;
+    padding: 52px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+    background: var(--cream);
+    position: relative;
+  }
+  .drop-zone:hover,
+  .drop-zone.dragover {
+    border-color: var(--gold);
+    background: var(--gold-pale);
+  }
+  .drop-zone.has-file {
+    border-color: var(--green);
+    background: var(--green-pale);
+  }
+  .drop-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    display: block;
+    transition: transform 0.2s;
+  }
+  .drop-zone:hover .drop-icon { transform: translateY(-3px); }
+  .drop-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 6px;
+  }
+  .drop-sub {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .drop-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .file-accepted {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    justify-content: center;
+  }
+  .drop-zone.has-file .file-accepted { display: flex; }
+  .drop-zone.has-file .drop-placeholder { display: none; }
+  .file-name-tag {
+    background: var(--green);
+    color: white;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .file-remove {
+    background: none;
+    border: 1.5px solid var(--red);
+    color: var(--red);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+
+  .doc-types {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+    justify-content: center;
+  }
+  .doc-tag {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  /* ===== クライアント情報 ===== */
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .form-grid.triple { grid-template-columns: 1fr 1fr 1fr; }
+  .field-wrap label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--navy);
+    margin-bottom: 5px;
+    letter-spacing: 0.04em;
+  }
+  .field-wrap input,
+  .field-wrap select,
+  .field-wrap textarea {
+    width: 100%;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 14px;
+    font-family: 'Noto Sans JP', sans-serif;
+    color: var(--ink);
+    background: var(--cream);
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+    -webkit-appearance: none;
+  }
+  .field-wrap input:focus,
+  .field-wrap select:focus,
+  .field-wrap textarea:focus {
+    border-color: var(--navy);
+    background: white;
+  }
+  .field-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* ===== トーン ===== */
+  .tone-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .tone-btn {
+    padding: 7px 15px;
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    font-size: 12.5px;
+    cursor: pointer;
+    background: white;
+    color: var(--muted);
+    transition: all 0.18s;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  .tone-btn.active {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: white;
+  }
+
+  /* ===== ANALYZE BTN ===== */
+  .analyze-btn {
+    width: 100%;
+    padding: 17px;
+    background: linear-gradient(135deg, var(--navy), var(--navy-mid));
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    font-family: 'Noto Sans JP', sans-serif;
+    margin-top: 6px;
+    transition: opacity 0.2s, transform 0.1s;
+    box-shadow: 0 4px 14px rgba(26,46,90,0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .analyze-btn:hover { opacity: 0.9; }
+  .analyze-btn:active { transform: scale(0.99); }
+  .analyze-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* ===== LOADING ===== */
+  .loading-overlay {
+    display: none;
+    background: white;
+    border-radius: 14px;
+    padding: 48px 32px;
+    text-align: center;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    margin-bottom: 20px;
+  }
+  .loading-overlay.visible { display: block; }
+  .spinner {
+    width: 52px; height: 52px;
+    border: 4px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    margin: 0 auto 18px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 8px;
+  }
+  .loading-steps {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 2;
+  }
+  .loading-step {
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+  .loading-step.visible { opacity: 1; }
+
+  /* ===== 解析結果 ===== */
+  .result-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .result-card {
+    background: var(--cream);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: center;
+  }
+  .result-card .rc-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    letter-spacing: 0.05em;
+  }
+  .result-card .rc-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+    font-family: 'Noto Serif JP', serif;
+  }
+  .result-card .rc-unit {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 2px;
+  }
+  .result-card.highlight {
+    border-color: var(--gold);
+    background: var(--gold-pale);
+  }
+  .result-card.highlight .rc-value { color: var(--gold); }
+
+  .finding-list {
+    list-style: none;
+    padding: 0;
+  }
+  .finding-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: white;
+    transition: border-color 0.2s;
+  }
+  .finding-item:hover { border-color: var(--navy); }
+  .finding-item input[type="checkbox"] {
+    width: 16px; height: 16px;
+    margin-top: 2px;
+    accent-color: var(--navy);
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .finding-item label {
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .finding-badge {
+    display: inline-block;
+    background: var(--gold-pale);
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    margin-left: 6px;
+    vertical-align: middle;
+    font-weight: 500;
+  }
+  .finding-badge.alert {
+    background: var(--red-pale);
+    border-color: var(--red);
+    color: var(--red);
+  }
+  .finding-badge.good {
+    background: var(--green-pale);
+    border-color: var(--green);
+    color: var(--green);
+  }
+
+  /* ===== レター ===== */
+  .letter-toolbar {
+    background: var(--navy);
+    border-radius: 10px 10px 0 0;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .letter-toolbar .label { color: white; font-size: 14px; font-weight: 500; }
+  .btn-group { display: flex; gap: 8px; }
+  .btn-sm {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-weight: 500;
+    border: 1.5px solid rgba(255,255,255,0.35);
+    color: white;
+    background: rgba(255,255,255,0.1);
+    transition: all 0.18s;
+  }
+  .btn-sm:hover { background: rgba(255,255,255,0.2); }
+
+  .letter-paper {
+    background: white;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: 40px 44px;
+    font-family: 'Noto Serif JP', serif;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+  }
+  .letter-date { text-align: right; font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  .letter-to { font-size: 18px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+  .letter-from { font-size: 12.5px; color: var(--muted); margin-bottom: 26px; }
+  .letter-subject {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    padding-bottom: 10px;
+    border-bottom: 2.5px solid var(--gold);
+    margin-bottom: 22px;
+    letter-spacing: 0.04em;
+  }
+  .letter-body { font-size: 14px; line-height: 2.1; color: #2d2d3a; }
+  .letter-data-box {
+    background: #f4f7ff;
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin: 18px 0;
+    font-size: 13px;
+    line-height: 1.9;
+    font-family: 'Noto Sans JP', sans-serif;
+    color: var(--ink);
+  }
+  .letter-findings-box {
+    background: var(--gold-pale);
+    border-left: 3.5px solid var(--gold);
+    border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+    margin: 20px 0;
+    font-size: 13.5px;
+    line-height: 2;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  .lf-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    margin-bottom: 10px;
+  }
+  .lf-item::before { content: '◆ '; color: var(--gold); font-size: 10px; }
+  .letter-closing {
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 1px dashed var(--border);
+    text-align: right;
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.9;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+
+  /* ===== ERROR ===== */
+  .error-box {
+    display: none;
+    background: var(--red-pale);
+    border: 1.5px solid var(--red);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    font-size: 13.5px;
+    color: var(--red);
+    line-height: 1.7;
+  }
+  .error-box.visible { display: block; }
+
+  /* ===== FOOTER ===== */
+  .site-footer {
+    text-align: center;
+    padding: 24px;
+    font-size: 11px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    margin-top: 40px;
+  }
+
+  @media (max-width: 600px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .form-grid.triple { grid-template-columns: 1fr 1fr; }
+    .result-grid { grid-template-columns: 1fr 1fr; }
+    .letter-paper { padding: 24px 18px; }
+    .flow-label { display: none; }
+  }
+
+  @media print {
+    .site-header, .flow-bar, .main > *:not(#letterPhase) { display: none !important; }
+    #letterPhase { display: block !important; }
+    .letter-toolbar { display: none !important; }
+    .letter-paper { box-shadow: none; border: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ▼ WORKERS URL をここに設定 -->
+<script>
+  // ★ Cloudflare Workers のURLに書き換えてください
+  const WORKERS_URL = 'https://shinkok-worker.YOUR_NAME.workers.dev';
+</script>
+
+<!-- HEADER -->
+<header class="site-header">
+  <div class="header-deco"></div>
+  <div class="header-deco2"></div>
+  <div class="header-inner">
+    <div class="brand-row">
+      <div class="brand-icon">申</div>
+      <div class="brand-text">
+        <div class="series">みっけシリーズ</div>
+        <h1>申告みっけ　PDF版</h1>
+      </div>
+    </div>
+    <p class="header-tagline">確定申告書・試算表・勘定科目をドロップするだけ。AIが読み取り、報告レターを自動生成します。</p>
+  </div>
+  <div class="gold-bar"></div>
+</header>
+
+<!-- フロー表示 -->
+<div class="flow-bar">
+  <div class="flow-inner">
+    <div class="flow-step active" id="flow1">
+      <div class="flow-dot">1</div>
+      <span class="flow-label">PDFアップロード</span>
+    </div>
+    <div class="flow-step" id="flow2">
+      <div class="flow-dot">2</div>
+      <span class="flow-label">AI解析中</span>
+    </div>
+    <div class="flow-step" id="flow3">
+      <div class="flow-dot">3</div>
+      <span class="flow-label">発見確認</span>
+    </div>
+    <div class="flow-step" id="flow4">
+      <div class="flow-dot">4</div>
+      <span class="flow-label">レター完成</span>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- ===== PHASE 1: アップロード ===== -->
+  <div class="phase active" id="phase1">
+
+    <!-- PDFドロップ -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">📂</span>
+        <span class="card-title">PDFファイルをドロップ（複数可・最大3ファイル）</span>
+      </div>
+      <div class="card-body">
+        <div class="drop-zone" id="dropZone">
+          <input type="file" class="drop-input" id="fileInput" accept=".pdf" multiple>
+          <div class="drop-placeholder">
+            <span class="drop-icon">📄</span>
+            <div class="drop-title">ここにPDFをドロップ<br>または クリックして選択</div>
+            <div class="drop-sub">確定申告書 / 試算表 / 勘定科目内訳 に対応</div>
+          </div>
+          <div class="file-accepted" id="fileAccepted"></div>
+        </div>
+        <div class="doc-types">
+          <span class="doc-tag">📋 確定申告書B</span>
+          <span class="doc-tag">📊 試算表（月次・年次）</span>
+          <span class="doc-tag">📁 勘定科目内訳明細</span>
+          <span class="doc-tag">📈 決算書・収支報告書</span>
+        </div>
+        <p class="field-hint" style="text-align:center;margin-top:10px;">
+          ※ e-Tax出力PDF・会計ソフト出力PDF・スキャンPDFすべて対応。最大3ファイル同時読み込み可。
+        </p>
+      </div>
+    </div>
+
+    <!-- クライアント情報 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">👤</span>
+        <span class="card-title">クライアント情報</span>
+      </div>
+      <div class="card-body">
+        <div class="form-grid" style="margin-bottom:14px;">
+          <div class="field-wrap">
+            <label>クライアント名</label>
+            <input type="text" id="clientName" placeholder="例：山田商店　山田太郎 様">
+          </div>
+          <div class="field-wrap">
+            <label>事業形態</label>
+            <select id="bizType">
+              <option value="個人事業主">個人事業主</option>
+              <option value="法人（中小企業）">法人（中小企業）</option>
+              <option value="医療法人">医療法人</option>
+              <option value="農業">農業</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid triple" style="margin-bottom:14px;">
+          <div class="field-wrap">
+            <label>申告年度</label>
+            <select id="nendo">
+              <option value="令和6年分">令和6年分</option>
+              <option value="令和5年分">令和5年分</option>
+              <option value="令和4年分">令和4年分</option>
+            </select>
+          </div>
+          <div class="field-wrap">
+            <label>担当者名</label>
+            <input type="text" id="tantou" placeholder="例：佐藤 花子">
+          </div>
+          <div class="field-wrap">
+            <label>事務所名</label>
+            <input type="text" id="office" placeholder="例：さくら税理士事務所">
+          </div>
+        </div>
+        <div class="field-wrap" style="margin-bottom:14px;">
+          <label>レターのトーン</label>
+          <div class="tone-row" style="margin-top:6px;">
+            <button class="tone-btn active" onclick="setTone(this,'warm')">🌸 温かみ重視</button>
+            <button class="tone-btn" onclick="setTone(this,'formal')">📋 丁寧・フォーマル</button>
+            <button class="tone-btn" onclick="setTone(this,'concise')">⚡ シンプル要点重視</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="error-box" id="errorBox">⚠️ <span id="errorMsg"></span></div>
+
+    <button class="analyze-btn" id="analyzeBtn" onclick="startAnalyze()">
+      <span>🔍　PDFを解析してレターを生成</span>
+    </button>
+
+  </div>
+
+  <!-- ===== PHASE 2: ローディング ===== -->
+  <div class="phase" id="phase2">
+    <div class="loading-overlay visible">
+      <div class="spinner"></div>
+      <div class="loading-title">AIが申告書を読み取っています</div>
+      <div class="loading-steps">
+        <div class="loading-step" id="ls1">📄 PDFを解析中...</div>
+        <div class="loading-step" id="ls2">🔢 数値を抽出中...</div>
+        <div class="loading-step" id="ls3">💡 節税ポイントを発見中...</div>
+        <div class="loading-step" id="ls4">✍️ 報告レターを作成中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PHASE 3: 発見確認 ===== -->
+  <div class="phase" id="phase3">
+
+    <!-- 数値サマリー -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">📊</span>
+        <span class="card-title">AIが読み取った数値（修正可）</span>
+      </div>
+      <div class="card-body">
+        <div class="result-grid" id="resultGrid">
+          <!-- JSで生成 -->
+        </div>
+        <div class="form-grid" style="margin-top:4px;">
+          <div class="field-wrap">
+            <label>売上金額（修正可）</label>
+            <input type="text" id="editUriage">
+          </div>
+          <div class="field-wrap">
+            <label>所得金額（修正可）</label>
+            <input type="text" id="editShotoku">
+          </div>
+          <div class="field-wrap">
+            <label>納税額（修正可）</label>
+            <input type="text" id="editNouzei">
+          </div>
+          <div class="field-wrap">
+            <label>前年比</label>
+            <input type="text" id="editZennen" placeholder="例：前年比+8%増">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 発見ポイント -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-icon">💡</span>
+        <span class="card-title">AIが見つけた発見ポイント（レターに含めるものにチェック）</span>
+      </div>
+      <div class="card-body">
+        <ul class="finding-list" id="findingList">
+          <!-- JSで生成 -->
+        </ul>
+      </div>
+    </div>
+
+    <button class="analyze-btn" onclick="generateLetter()">
+      ✍️　選択した内容でレターを生成
+    </button>
+
+  </div>
+
+  <!-- ===== PHASE 4: レター ===== -->
+  <div class="phase" id="phase4">
+
+    <div class="letter-toolbar">
+      <span class="label">📄 クライアント報告レター</span>
+      <div class="btn-group">
+        <button class="btn-sm" onclick="copyLetter()">コピー</button>
+        <button class="btn-sm" onclick="window.print()">印刷</button>
+        <button class="btn-sm" onclick="goBack()">← やり直す</button>
+      </div>
+    </div>
+    <div class="letter-paper" id="letterPaper"></div>
+
+  </div>
+
+</main>
+
+<footer class="site-footer">
+  申告みっけ PDF版｜みっけシリーズ　©Smile Plus Consulting<br>
+  このツールは税務アドバイスを提供するものではありません。申告内容は必ず専門家にご確認ください。
+</footer>
+
+<script>
+// =====================================================
+//  STATE
+// =====================================================
+let selectedTone = 'warm';
+let uploadedFiles = [];
+let aiResult = null;
+
+// =====================================================
+//  TONE
+// =====================================================
+function setTone(btn, tone) {
+  document.querySelectorAll('.tone-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedTone = tone;
+}
+
+// =====================================================
+//  FILE DROP
+// =====================================================
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  handleFiles(Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf'));
+});
+fileInput.addEventListener('change', () => {
+  handleFiles(Array.from(fileInput.files));
+});
+
+function handleFiles(files) {
+  if (!files.length) return;
+  uploadedFiles = files.slice(0, 3);
+  const zone = document.getElementById('dropZone');
+  const accepted = document.getElementById('fileAccepted');
+  zone.classList.add('has-file');
+  accepted.innerHTML = uploadedFiles.map(f =>
+    `<span class="file-name-tag">📄 ${f.name}</span>`
+  ).join('') + `<button class="file-remove" onclick="removeFiles(event)">削除</button>`;
+}
+
+function removeFiles(e) {
+  e.stopPropagation();
+  uploadedFiles = [];
+  const zone = document.getElementById('dropZone');
+  zone.classList.remove('has-file');
+  document.getElementById('fileAccepted').innerHTML = '';
+  fileInput.value = '';
+}
+
+// =====================================================
+//  PDF → base64
+// =====================================================
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// =====================================================
+//  PHASE 切替
+// =====================================================
+function showPhase(n) {
+  document.querySelectorAll('.phase').forEach(p => p.classList.remove('active'));
+  document.getElementById('phase' + n).classList.add('active');
+  ['flow1','flow2','flow3','flow4'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('active', 'done');
+    if (i + 1 < n) el.classList.add('done');
+    if (i + 1 === n) el.classList.add('active');
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// =====================================================
+//  ANALYZE
+// =====================================================
+async function startAnalyze() {
+  const errorBox = document.getElementById('errorBox');
+  errorBox.classList.remove('visible');
+
+  if (!uploadedFiles.length) {
+    showError('PDFファイルをアップロードしてください。');
+    return;
+  }
+
+  showPhase(2);
+
+  // ローディングステップ演出
+  const steps = ['ls1','ls2','ls3','ls4'];
+  steps.forEach((id, i) => {
+    setTimeout(() => {
+      document.getElementById(id).classList.add('visible');
+    }, i * 1500);
+  });
+
+  try {
+    // base64変換
+    const pdfDataList = await Promise.all(uploadedFiles.map(fileToBase64));
+
+    // Workers呼び出し
+    const response = await fetch(WORKERS_URL + '/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pdfs: pdfDataList,
+        fileNames: uploadedFiles.map(f => f.name),
+        bizType: document.getElementById('bizType').value,
+        nendo: document.getElementById('nendo').value
+      })
+    });
+
+    if (!response.ok) throw new Error('サーバーエラー: ' + response.status);
+    aiResult = await response.json();
+
+    buildPhase3(aiResult);
+    showPhase(3);
+
+  } catch (err) {
+    showPhase(1);
+    showError('解析に失敗しました。WorkersのURLを確認してください。（' + err.message + '）');
+  }
+}
+
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  document.getElementById('errorMsg').textContent = msg;
+  box.classList.add('visible');
+}
+
+// =====================================================
+//  PHASE3 構築
+// =====================================================
+function buildPhase3(result) {
+  // 数値カード
+  const grid = document.getElementById('resultGrid');
+  const nums = [
+    { label: '売上金額', value: result.uriage || '読取中', unit: '円' },
+    { label: '所得金額', value: result.shotoku || '読取中', unit: '円' },
+    { label: '納税額', value: result.nouzei || '読取中', unit: '円' }
+  ];
+  grid.innerHTML = nums.map((n, i) => `
+    <div class="result-card ${i === 2 ? 'highlight' : ''}">
+      <div class="rc-label">${n.label}</div>
+      <div class="rc-value">${n.value}<span class="rc-unit">${n.unit}</span></div>
+    </div>
+  `).join('');
+
+  // 入力欄に反映
+  document.getElementById('editUriage').value = result.uriage || '';
+  document.getElementById('editShotoku').value = result.shotoku || '';
+  document.getElementById('editNouzei').value = result.nouzei || '';
+  document.getElementById('editZennen').value = result.zennen || '';
+
+  // 発見リスト
+  const list = document.getElementById('findingList');
+  const findings = result.findings || [];
+  list.innerHTML = findings.map((f, i) => `
+    <li class="finding-item">
+      <input type="checkbox" id="f${i}" checked>
+      <label for="f${i}">
+        ${f.text}
+        ${f.type === 'alert' ? '<span class="finding-badge alert">要注意</span>' : ''}
+        ${f.type === 'saving' ? '<span class="finding-badge">節税</span>' : ''}
+        ${f.type === 'good' ? '<span class="finding-badge good">良好</span>' : ''}
+      </label>
+    </li>
+  `).join('');
+}
+
+// =====================================================
+//  LETTER 生成
+// =====================================================
+function generateLetter() {
+  const client = document.getElementById('clientName').value || 'お客様';
+  const tantou = document.getElementById('tantou').value || '担当者';
+  const office = document.getElementById('office').value || '当事務所';
+  const nendo = document.getElementById('nendo').value;
+
+  const uriage = document.getElementById('editUriage').value;
+  const shotoku = document.getElementById('editShotoku').value;
+  const nouzei = document.getElementById('editNouzei').value;
+  const zennen = document.getElementById('editZennen').value;
+
+  // 選択した発見ポイント
+  const checkedFindings = Array.from(document.querySelectorAll('#findingList input[type="checkbox"]:checked'))
+    .map(cb => cb.nextElementSibling.textContent.trim().replace(/要注意|節税|良好/g, '').trim());
+
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
+
+  const openMap = {
+    warm: 'いつも大変お世話になっております。\nこのたびの確定申告が無事に完了いたしましたことをご報告申し上げます。\n書類を拝見するなかで、いくつか大切な気づきもございましたのでお伝えします。',
+    formal: '平素は格別のお引き立てを賜り、厚く御礼申し上げます。\nこのたび、確定申告書の提出が完了いたしましたのでご報告申し上げます。\n申告内容に関連して、お伝えしたい事項がございます。',
+    concise: 'お世話になっております。確定申告の完了をご報告します。\n申告作業で確認できた重要ポイントをお伝えします。'
+  };
+  const closeMap = {
+    warm: '今後も税務のことはもちろん、経営全般のお悩みもお気軽にご相談ください。\nともに考え、ともに歩んでいけることを嬉しく思っております。\nどうぞよろしくお願いいたします。',
+    formal: '今後ともお気軽にご相談いただければ幸いです。\nより良い経営のお役に立てるよう、引き続き誠心誠意サポートいたします。\n何卒よろしくお願いいたします。',
+    concise: 'ご不明な点はいつでもご連絡ください。引き続きよろしくお願いいたします。'
+  };
+
+  let dataHTML = '';
+  if (uriage || shotoku || nouzei) {
+    dataHTML = `<div class="letter-data-box">
+      【${nendo}　申告概要】<br>
+      ${uriage ? `・売上（収入）金額：${uriage} 円<br>` : ''}
+      ${shotoku ? `・所得金額（課税所得）：${shotoku} 円<br>` : ''}
+      ${nouzei ? `・納税額：${nouzei} 円<br>` : ''}
+      ${zennen ? `・前年比：${zennen}` : ''}
+    </div>`;
+  }
+
+  let findingsHTML = '';
+  if (checkedFindings.length > 0) {
+    findingsHTML = `<div class="letter-findings-box">
+      <div class="lf-title">📌 今回の申告で見えたポイント</div>
+      ${checkedFindings.map(f => `<div class="lf-item">${f}</div>`).join('')}
+    </div>`;
+  }
+
+  const open = openMap[selectedTone] || openMap.warm;
+  const close = closeMap[selectedTone] || closeMap.warm;
+
+  document.getElementById('letterPaper').innerHTML = `
+    <div class="letter-date">${dateStr}</div>
+    <div class="letter-to">${client}</div>
+    <div class="letter-from">${office}　${tantou}</div>
+    <div class="letter-subject">　${nendo}　確定申告完了のご報告</div>
+    <div class="letter-body">${open.replace(/\n/g,'<br>')}</div>
+    ${dataHTML}
+    ${findingsHTML}
+    <div class="letter-body" style="margin-top:16px;">${close.replace(/\n/g,'<br>')}</div>
+    <div class="letter-closing">
+      ${office}<br>
+      担当：${tantou}<br>
+      ─────────────────
+    </div>
+  `;
+
+  showPhase(4);
+}
+
+// =====================================================
+//  UTIL
+// =====================================================
+function copyLetter() {
+  const text = document.getElementById('letterPaper').innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.btn-sm');
+    const orig = btn.textContent;
+    btn.textContent = '✓ コピー完了';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  });
+}
+
+function goBack() {
+  showPhase(1);
+}
+
+</script>
+</body>
+</html>
