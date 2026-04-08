@@ -4,6 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>申告みっけ｜確定申告PDFから報告レターを自動生成</title>
+
+<!-- ファビコン設定 -->
+<link rel="icon" href="https://spc-jp.github.io/shinkoku-mikke/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="https://spc-jp.github.io/shinkoku-mikke/favicon.png">
+
+<!-- OGP設定 -->
+<meta property="og:title" content="申告みっけ｜確定申告PDFから報告レターを自動生成">
+<meta property="og:description" content="確定申告書・試算表・勘定科目をドロップするだけ。AIが読み取り、報告レターを自動生成します。">
+<meta property="og:image" content="https://spc-jp.github.io/shinkoku-mikke/ogp.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="申告みっけ｜確定申告PDFから報告レターを自動生成">
+<meta name="twitter:description" content="確定申告書・試算表・勘定科目をドロップするだけ。AIが読み取り、報告レターを自動生成します。">
+<meta name="twitter:image" content="https://spc-jp.github.io/shinkoku-mikke/ogp.png">
+
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
   /* =============================================
@@ -1115,12 +1130,23 @@ function generateLetter() {
 // =====================================================
 function copyLetter() {
   const text = document.getElementById('letterPaper').innerText;
-  navigator.clipboard.writeText(text).then(() => {
+  
+  // Canvas環境で正常にコピー動作させるための置換処理
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand('copy');
     const btn = document.querySelector('.btn-sm');
     const orig = btn.textContent;
     btn.textContent = '✓ コピー完了';
     setTimeout(() => { btn.textContent = orig; }, 2000);
-  });
+  } catch (err) {
+    console.error('コピーに失敗しました', err);
+  } finally {
+    document.body.removeChild(textarea);
+  }
 }
 
 function goBack() {
